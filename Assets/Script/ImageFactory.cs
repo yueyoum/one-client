@@ -41,56 +41,61 @@ public class ImageFactory : MonoBehaviour
     {
         imageList = new ImageList();
         imageList.Images = new List<Image>();
+
+        HTTPManager.ConnectTimeout = System.TimeSpan.FromSeconds(10);
+        HTTPManager.RequestTimeout = System.TimeSpan.FromSeconds(20);
     }
 
 
-    public IEnumerator GetImage(System.Action<Image> callback)
+    public IEnumerator GetImage(System.Action<Image> callback, System.Action<string> errorCallback)
     {
-        Debug.Log("GetImage");
         if (imageList.Images.Count == 0)
         {
             // no images, get new
-            Debug.Log("No Image, Get New");
-            yield return StartCoroutine(GetImages());
+            yield return StartCoroutine(GetImages(errorCallback));
+        }
+
+        if (imageList.Images.Count == 0)
+        {
+            yield break;
         }
 
         int index = Random.Range(0, imageList.Images.Count - 1);
         Image i = imageList.Images[index];
-        imageList.Images.RemoveAt(index);
+
         
         HTTPRequest req = new HTTPRequest(new System.Uri(i.Url));
         req.Send();
-        Debug.Log("Send to get image");
         yield return StartCoroutine(req);
 
         if(req.Response==null || !req.Response.IsSuccess)
         {
-            Debug.Log("image content req error");
+            errorCallback("Get Image Error");
             yield break;
         }
 
+        imageList.Images.RemoveAt(index);
+
         i.Tex = req.Response.DataAsTexture2D;
         callback(i);
-
-        Debug.Log("Done");
+        yield return null;
     }
 
 
-    private IEnumerator GetImages()
+    private IEnumerator GetImages(System.Action<string> errorCallback)
     {
         HTTPRequest req = new HTTPRequest(new System.Uri("http://one.digitnode.com/images/"));
         req.Send();
         yield return StartCoroutine(req);
 
-        if(!req.Response.IsSuccess)
+        if(req.Response==null || !req.Response.IsSuccess)
         {
-            Debug.Log("res not success!");
+            errorCallback("Get DigitNode Error");
             yield break;
         }
 
         string data = req.Response.DataAsText;
         imageList = JsonConvert.DeserializeObject<ImageList>(data);
-        Debug.Log("Get Done");
         yield return null;
     }
 }
